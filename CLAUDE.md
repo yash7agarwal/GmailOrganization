@@ -2,7 +2,9 @@
 
 ## Project Purpose
 
-Autonomously organize a Gmail inbox using intelligent email clustering, label management, reading priority scoring, unsubscribe detection, and Telegram/mobile notifications — with a **continuous auto-learning loop** that evolves its understanding of the user's inbox patterns month over month.
+Autonomously organize a Gmail inbox using intelligent email clustering, label management, reading priority scoring, unsubscribe detection, expense tracking, and Telegram/mobile notifications — with a **continuous auto-learning loop** that evolves its understanding of the user's inbox patterns month over month.
+
+The system also acts as a **personal finance monitor**: it extracts purchases, charges, and subscription costs from emails, tracks upcoming renewals and expiring subscriptions, and surfaces all of this in the daily Telegram digest.
 
 ---
 
@@ -20,6 +22,8 @@ The system automatically identifies clusters of emails and creates/applies Gmail
 | `Newsletters` | Curated newsletters, digest emails, Substack, etc. |
 | `AI & Tech Intelligence` | AI research papers, model releases, LLM news, AI tool launches, developer digests — prioritized given user's active AI engagement |
 | `Unsubscribe Candidates` | Emails from lists the user has never engaged with — flagged for unsubscribing |
+| `Purchases & Receipts` | Order confirmations, payment receipts, invoices, charge notifications |
+| `Subscriptions & Renewals` | Active subscriptions with renewal/expiry dates extracted for tracking |
 
 Beyond seeds, the system **auto-discovers** new clusters based on sender patterns, subject line similarity, and email frequency — then proposes and creates new labels dynamically.
 
@@ -31,8 +35,10 @@ Every day the system should:
 3. Create any new Gmail labels that are needed
 4. Apply labels to emails
 5. Score each email for reading priority
-6. Log classification decisions to the learning store
-7. Send a daily digest notification via Telegram
+6. Extract purchases and subscription events from relevant emails
+7. Update the expense and renewal tracking store
+8. Log classification decisions to the learning store
+9. Send a daily digest notification via Telegram (including purchases + renewal alerts)
 
 ### 3. Reading Priority Scoring
 
@@ -44,7 +50,60 @@ After clustering, evaluate each email and produce a tiered output:
 
 Delivered as part of the daily Telegram notification.
 
-### 4. Unsubscribe Detection
+### 4. Expense & Subscription Tracking
+
+The system extracts structured financial data from emails and maintains a running expense log and renewal calendar.
+
+#### What Gets Tracked
+
+**Recent Purchases** — extracted from order confirmations, payment receipts, and charge emails:
+- Merchant / sender name
+- Amount charged (currency + value)
+- Purchase date
+- Item/service description (if available)
+- Transaction ID or order number
+
+**Subscriptions & Renewals** — extracted from billing confirmation, renewal reminder, and trial-ending emails:
+- Service name (e.g., Notion, AWS, Adobe)
+- Billing amount and cycle (monthly/annual)
+- Next renewal date
+- Expiry date (for trials or fixed-term subscriptions)
+- Status: `active`, `expiring_soon` (≤7 days), `expired`
+
+#### Renewal Alert Rules
+
+Proactively flag in the daily digest:
+- Any subscription renewing **within 7 days** — "Upcoming: Netflix renews in 3 days ($15.99)"
+- Any subscription that **expired in the last 3 days** — "Expired: Adobe CC expired yesterday"
+- Any new charge above a configurable threshold (default: ₹500 / $10) — "New charge: AWS $47.30"
+- Annual subscriptions renewing **within 30 days** — surfaced as a low-priority reminder
+
+#### Data Extraction Approach
+
+Use Claude to parse purchase/billing emails and extract structured JSON:
+```json
+{
+  "type": "purchase" | "renewal" | "expiry_reminder" | "trial_ending",
+  "merchant": "string",
+  "amount": number,
+  "currency": "string",
+  "date": "YYYY-MM-DD",
+  "renewal_date": "YYYY-MM-DD or null",
+  "expiry_date": "YYYY-MM-DD or null",
+  "billing_cycle": "monthly" | "annual" | "one-time" | null,
+  "description": "string"
+}
+```
+
+Store in the `expenses` and `subscriptions` tables in SQLite (see Learning Store).
+
+#### Telegram Commands for Expenses
+
+- `/spend` — recent purchases in the last 7 days with total
+- `/renewals` — all subscriptions renewing in the next 30 days, sorted by date
+- `/subscriptions` — full active subscription list with amounts and next renewal dates
+
+### 5. Unsubscribe Detection
 
 A dedicated label `Unsubscribe Candidates` is maintained for emails where:
 - The user has never clicked or replied
@@ -53,21 +112,52 @@ A dedicated label `Unsubscribe Candidates` is maintained for emails where:
 
 Daily report includes a list of domains/senders to unsubscribe from.
 
-### 5. Telegram / Mobile Notifications
+### 6. Telegram / Mobile Notifications
 
 Communicate with the user via Telegram to report:
 - Daily summary: total emails received, breakdown by cluster, must-read count
+- **Recent purchases** (last 24h) — merchant, amount, date
+- **Renewal alerts** — subscriptions expiring or renewing within 7 days
+- **Annual renewal reminders** — surfaced 30 days ahead
 - New clusters discovered
 - Unsubscribe recommendations
 - Anomalies (e.g., unusual spike from a sender)
 - Monthly learning report: what the model learned, which labels grew/shrank, new patterns detected
 
-The Telegram bot accepts commands:
-- `today` — show must-reads
-- `unsubscribe` — list unsubscribe candidates
-- `clusters` — show current label breakdown
-- `learn` — trigger a manual learning cycle
-- `report` — generate the monthly learning summary
+#### Daily Digest Structure (Telegram)
+
+```
+📬 Inbox Summary — Apr 5
+━━━━━━━━━━━━━━━━━━━━
+Must Read (3): ...
+AI & Tech (5 new): ...
+
+💳 Recent Charges
+• AWS — $47.30 (Apr 4)
+• Notion — $16.00 (Apr 5)
+
+🔔 Upcoming Renewals
+⚠️  Adobe CC — renews in 2 days ($54.99)
+📅  GitHub Pro — renews in 6 days ($4.00)
+
+📦 30-Day Reminder
+• AWS Annual — renews May 3 ($299.00)
+
+🗑️ Unsubscribe (2 candidates): ...
+```
+
+#### Telegram Bot Commands
+
+| Command | Description |
+|---|---|
+| `/today` | Show today's must-reads |
+| `/unsubscribe` | List unsubscribe candidates |
+| `/clusters` | Show current label breakdown |
+| `/learn` | Trigger a manual learning cycle |
+| `/report` | Generate the monthly learning summary |
+| `/spend` | Recent purchases in the last 7 days with total |
+| `/renewals` | All subscriptions renewing in the next 30 days |
+| `/subscriptions` | Full active subscription list with amounts and dates |
 
 ---
 
@@ -129,6 +219,8 @@ Sent on the 1st of each month, includes:
   - Sender engagement history
   - Cluster size over time (for trend detection)
   - User feedback signals from Telegram interactions
+  - **`expenses` table** — extracted purchases (merchant, amount, currency, date, email_id)
+  - **`subscriptions` table** — tracked subscriptions (service, amount, billing_cycle, renewal_date, expiry_date, status)
 
 ### Scheduler
 - Daily cron (`CronCreate`) — full pipeline: fetch → classify → label → score → notify
@@ -180,9 +272,14 @@ GmailOrganization/
 │   ├── reporter.py                  # Monthly report generator
 │   └── db/                          # (gitignored) live SQLite database
 │
+├── expenses/
+│   ├── extractor.py                 # Claude-based parser: extract purchase/renewal data from emails
+│   ├── tracker.py                   # Read/write expenses + subscriptions tables in SQLite
+│   └── renewal_alerts.py            # Generate renewal alert list for daily digest
+│
 ├── notifications/
-│   ├── bot.py                       # Telegram bot + command handlers
-│   ├── daily_digest.py              # Daily digest formatter
+│   ├── bot.py                       # Telegram bot + command handlers (/spend, /renewals, /subscriptions)
+│   ├── daily_digest.py              # Daily digest formatter (includes charges + renewal section)
 │   └── monthly_report.py            # Monthly report formatter
 │
 ├── scheduler/
@@ -283,3 +380,7 @@ tail -f logs/daily/$(date +%Y-%m-%d).log
 - Cross-account support (multiple Gmail accounts)
 - Smart reply suggestions for must-read emails
 - Integration with Notion/Obsidian to log AI tool discoveries from emails into a personal knowledge base
+- Monthly spend report — total by merchant, by category, vs. prior month
+- Configurable charge alert threshold (notify only above ₹X / $X)
+- Currency normalization across USD/INR/EUR charges
+- Export subscriptions to CSV / Google Sheets for budget review
