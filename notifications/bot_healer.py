@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Auto-healing system for the Telegram bot.
 
