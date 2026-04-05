@@ -1,0 +1,9 @@
+{
+  "id": "msg_003",
+  "thread_id": "thread_003",
+  "subject": "GPT-5 Technical Report Released by OpenAI",
+  "sender": "news@openai.com",
+  "date": "Mon, 5 Apr 2026 10:00:00 +0000",
+  "snippet": "OpenAI has released the GPT-5 technical report. The model achieves state-of-the-art results on reasoning benchmarks with a 200K context window.",
+  "label_ids": []
+}

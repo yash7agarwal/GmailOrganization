@@ -1,0 +1,23 @@
+# Reading priority scoring rules
+# must_read, skim, or skip
+
+rules:
+  must_read:
+    - label: Transactional
+      conditions: [contains_action_required, contains_deadline]
+    - label: Subscriptions & Renewals
+      conditions: [any]  # Always flag renewals
+    - sender_type: personal  # Direct human-to-human emails
+
+  skim:
+    - label: Newsletters
+    - label: AI & Tech Intelligence
+      conditions: [not_duplicate]
+
+  skip:
+    - label: Promotions & Marketing
+    - label: Unsubscribe Candidates
+
+# Thresholds
+unsubscribe_volume_threshold: 5  # emails/month with zero engagement triggers unsubscribe candidate
+confidence_threshold: 0.75        # Below this, log as ambiguous for learning review

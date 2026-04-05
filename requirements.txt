@@ -1,0 +1,9 @@
+anthropic
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+python-telegram-bot
+pyyaml
+python-dotenv
+schedule

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3:*)",
+      "Bash(echo \"Bot PID: $!\")",
+      "Bash(echo \"Scheduler PID: $!\")",
+      "Bash(kill 57240)",
+      "Bash(echo \"Bot restarted, PID: $!\")",
+      "Bash(kill 57793)",
+      "Bash(echo \"Bot restarted, PID: $!\" sleep 3)"
+    ]
+  }
+}

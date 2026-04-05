@@ -1,0 +1,28 @@
+# Seed label definitions
+# Add new labels here as the project evolves.
+# Each label has a name, description, and keyword hints for bootstrapping the classifier.
+
+labels:
+  - name: Subscriptions & Renewals
+    description: SaaS renewals, domain/hosting renewals, billing alerts
+    keywords: [invoice, renewal, subscription, billing, receipt, payment, plan, expires]
+
+  - name: Transactional
+    description: Daily automated emails from services (Zoom, Webex, receipts, calendar)
+    keywords: [zoom, webex, calendar, invite, confirmation, order, shipped, delivery]
+
+  - name: Promotions & Marketing
+    description: Marketing blasts, MBA emails, course promotions, sales
+    keywords: [sale, offer, discount, promo, limited time, enroll, apply now, mba]
+
+  - name: Newsletters
+    description: Curated newsletters, digests, Substack
+    keywords: [newsletter, digest, weekly, roundup, substack, issue, edition]
+
+  - name: AI & Tech Intelligence
+    description: AI research, model releases, LLM news, AI tool launches, developer digests
+    keywords: [ai, llm, gpt, claude, gemini, openai, anthropic, langchain, model, agent, ml, deep learning]
+
+  - name: Unsubscribe Candidates
+    description: High-volume senders the user has never engaged with
+    keywords: []  # Populated dynamically by the learning system

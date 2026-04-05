@@ -1,0 +1,19 @@
+# Global settings
+
+pipeline:
+  fetch_max_results: 100        # Emails fetched per daily run
+  lookback_days: 7              # How far back to fetch unlabeled emails
+
+scheduler:
+  daily_run_time: "07:00"       # Local time for daily pipeline
+  weekly_run_day: "monday"      # Day for drift detection
+  monthly_run_day: 1            # Day of month for retraining + report
+
+learning:
+  min_cluster_size: 10          # Minimum emails to form a new auto-discovered cluster
+  drift_alert_threshold: 2.0    # Flag if a cluster grows 2x week-over-week
+
+notifications:
+  daily_digest: true
+  weekly_summary: false         # Enable when ready
+  monthly_report: true

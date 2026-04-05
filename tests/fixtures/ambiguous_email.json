@@ -1,0 +1,9 @@
+{
+  "id": "msg_004",
+  "thread_id": "thread_004",
+  "subject": "Action Required: Your account needs attention",
+  "sender": "support@somesaas.io",
+  "date": "Mon, 5 Apr 2026 11:00:00 +0000",
+  "snippet": "We noticed an issue with your account. Please review your settings and confirm your billing information by April 12.",
+  "label_ids": []
+}
