@@ -72,6 +72,31 @@ def init_db() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_classifications_label
             ON classifications (label);
+
+        CREATE TABLE IF NOT EXISTS expenses (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            email_id    TEXT NOT NULL UNIQUE,
+            merchant    TEXT,
+            amount      REAL,
+            currency    TEXT DEFAULT 'USD',
+            date        TEXT,
+            description TEXT,
+            created_at  TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            service         TEXT NOT NULL,
+            merchant_domain TEXT,
+            amount          REAL,
+            currency        TEXT DEFAULT 'USD',
+            billing_cycle   TEXT,
+            renewal_date    TEXT,
+            expiry_date     TEXT,
+            status          TEXT DEFAULT 'active',
+            last_updated    TEXT NOT NULL,
+            UNIQUE(service)
+        );
         """)
     print(f"Database initialized at {DB_PATH}")
 
@@ -242,6 +267,108 @@ def log_feedback(event_type: str, payload: dict) -> None:
             "INSERT INTO feedback_events (event_type, payload, timestamp) VALUES (?, ?, ?)",
             (event_type, json.dumps(payload), datetime.utcnow().isoformat()),
         )
+
+
+def log_expense(
+    email_id: str,
+    merchant: str,
+    amount: float | None,
+    currency: str,
+    date: str,
+    description: str,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO expenses
+              (email_id, merchant, amount, currency, date, description, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (email_id, merchant, amount, currency, date, description, datetime.utcnow().isoformat()),
+        )
+
+
+def get_recent_expenses(days: int = 7) -> list[dict]:
+    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM expenses WHERE date >= ? ORDER BY date DESC",
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def upsert_subscription(
+    service: str,
+    merchant_domain: str,
+    amount: float | None,
+    currency: str,
+    billing_cycle: str | None,
+    renewal_date: str | None,
+    expiry_date: str | None,
+) -> None:
+    now = datetime.utcnow()
+    status = "active"
+    if expiry_date:
+        try:
+            exp = datetime.strptime(expiry_date, "%Y-%m-%d")
+            if exp < now:
+                status = "expired"
+            elif (exp - now).days <= 7:
+                status = "expiring_soon"
+        except ValueError:
+            pass
+    if renewal_date and status == "active":
+        try:
+            ren = datetime.strptime(renewal_date, "%Y-%m-%d")
+            if (ren - now).days <= 7:
+                status = "expiring_soon"
+        except ValueError:
+            pass
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO subscriptions
+              (service, merchant_domain, amount, currency, billing_cycle, renewal_date, expiry_date, status, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(service) DO UPDATE SET
+                merchant_domain = excluded.merchant_domain,
+                amount = excluded.amount,
+                currency = excluded.currency,
+                billing_cycle = excluded.billing_cycle,
+                renewal_date = excluded.renewal_date,
+                expiry_date = excluded.expiry_date,
+                status = excluded.status,
+                last_updated = excluded.last_updated
+            """,
+            (service, merchant_domain, amount, currency, billing_cycle,
+             renewal_date, expiry_date, status, now.isoformat()),
+        )
+
+
+def get_upcoming_renewals(days: int = 30) -> list[dict]:
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    cutoff = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM subscriptions
+            WHERE (renewal_date BETWEEN ? AND ? OR expiry_date BETWEEN ? AND ?)
+              AND status != 'expired'
+            ORDER BY COALESCE(renewal_date, expiry_date) ASC
+            """,
+            (today, cutoff, today, cutoff),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_subscriptions() -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM subscriptions ORDER BY status ASC, COALESCE(renewal_date, expiry_date) ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_latest_snapshot() -> dict[str, int]:

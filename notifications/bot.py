@@ -147,6 +147,103 @@ async def cmd_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     store.log_feedback("command_run", {"command": "/report"})
 
 
+async def cmd_spend(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_authorized(update):
+        return
+
+    from learning.store import get_recent_expenses
+    expenses = get_recent_expenses(days=7)
+
+    if not expenses:
+        await update.message.reply_text("No purchases found in the last 7 days.")
+        return
+
+    _sym = {"USD": "$", "INR": "₹", "EUR": "€", "GBP": "£"}
+    total_by_currency: dict[str, float] = {}
+    lines = ["*RECENT PURCHASES — last 7 days:*\n"]
+    for e in expenses[:20]:
+        merchant = e.get("merchant", "Unknown")
+        amt = e.get("amount")
+        currency = e.get("currency", "USD")
+        date = e.get("date", "")[:10]
+        symbol = _sym.get(currency.upper(), currency + " ")
+        amt_str = f"{symbol}{amt:.2f}" if amt is not None else "amount unknown"
+        lines.append(f"  • {merchant} — *{amt_str}* _{date}_")
+        if amt is not None:
+            total_by_currency[currency] = total_by_currency.get(currency, 0.0) + amt
+
+    if total_by_currency:
+        totals = ", ".join(f"{_sym.get(c.upper(), c + ' ')}{v:.2f}" for c, v in total_by_currency.items())
+        lines.append(f"\n*Total:* {totals}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    store.log_feedback("command_run", {"command": "/spend"})
+
+
+async def cmd_renewals(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_authorized(update):
+        return
+
+    from learning.store import get_upcoming_renewals
+    from expenses.renewal_alerts import format_renewal_section, get_renewal_alerts
+
+    alerts = get_renewal_alerts()
+    section = format_renewal_section(alerts)
+
+    if not section:
+        renewals = get_upcoming_renewals(days=30)
+        if not renewals:
+            await update.message.reply_text("No upcoming renewals in the next 30 days.")
+            return
+        _sym = {"USD": "$", "INR": "₹", "EUR": "€", "GBP": "£"}
+        lines = ["*UPCOMING RENEWALS — next 30 days:*\n"]
+        for r in renewals:
+            service = r.get("service", "Unknown")
+            due = r.get("renewal_date") or r.get("expiry_date", "?")
+            amt = r.get("amount")
+            currency = r.get("currency", "USD")
+            symbol = _sym.get(currency.upper(), currency + " ")
+            amt_str = f" — {symbol}{amt:.2f}" if amt is not None else ""
+            lines.append(f"  • {service}{amt_str} — _{due}_")
+        section = "\n".join(lines)
+
+    await update.message.reply_text(section, parse_mode="Markdown")
+    store.log_feedback("command_run", {"command": "/renewals"})
+
+
+async def cmd_subscriptions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_authorized(update):
+        return
+
+    from learning.store import get_all_subscriptions
+    subs = get_all_subscriptions()
+
+    if not subs:
+        await update.message.reply_text(
+            "No subscriptions tracked yet.\n\n"
+            "They'll be auto-detected from billing emails as the pipeline runs."
+        )
+        return
+
+    _status_emoji = {"active": "✅", "expiring_soon": "⚠️", "expired": "❌"}
+    _sym = {"USD": "$", "INR": "₹", "EUR": "€", "GBP": "£"}
+    lines = [f"*ALL SUBSCRIPTIONS ({len(subs)}):*\n"]
+    for s in subs:
+        service = s.get("service", "Unknown")
+        amt = s.get("amount")
+        currency = s.get("currency", "USD")
+        cycle = s.get("billing_cycle") or ""
+        renewal = s.get("renewal_date") or s.get("expiry_date") or "unknown"
+        status = s.get("status", "active")
+        emoji = _status_emoji.get(status, "•")
+        symbol = _sym.get(currency.upper(), currency + " ")
+        amt_str = f"{symbol}{amt:.2f}/{cycle}" if amt is not None else "amount unknown"
+        lines.append(f"  {emoji} *{service}* — {amt_str}\n      next: _{renewal}_")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    store.log_feedback("command_run", {"command": "/subscriptions"})
+
+
 async def _handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -272,6 +369,9 @@ def start_bot() -> None:
     app.add_handler(CommandHandler("clusters", cmd_clusters))
     app.add_handler(CommandHandler("learn", cmd_learn))
     app.add_handler(CommandHandler("report", cmd_report))
+    app.add_handler(CommandHandler("spend", cmd_spend))
+    app.add_handler(CommandHandler("renewals", cmd_renewals))
+    app.add_handler(CommandHandler("subscriptions", cmd_subscriptions))
     app.add_handler(CallbackQueryHandler(_handle_callback_query))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 

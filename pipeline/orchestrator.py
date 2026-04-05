@@ -144,6 +144,18 @@ def run_daily_pipeline() -> dict:
         logger.error(f"Label stage failed: {e}")
         result["errors"].append(f"label: {e}")
 
+    # Stage 4.5: Extract expenses and subscriptions from financial emails
+    try:
+        from expenses.extractor import process_financial_emails
+        expense_result = process_financial_emails(scored)
+        logger.info(
+            f"Expenses: {expense_result['expenses_logged']} logged, "
+            f"{expense_result['subscriptions_updated']} subscriptions updated"
+        )
+    except Exception as e:
+        logger.warning(f"Expense extraction stage failed: {e}")
+        result["errors"].append(f"expenses: {e}")
+
     # Stage 5: Log to learning store
     try:
         for email in scored:

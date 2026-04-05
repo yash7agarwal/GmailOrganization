@@ -161,6 +161,59 @@ Respond ONLY with a valid JSON array:
         return []
 
 
+def extract_purchase_data(
+    subject: str,
+    sender: str,
+    snippet: str,
+    email_id: str = "",
+) -> dict | None:
+    """
+    Parse a purchase/billing email and return structured financial data.
+    Returns None if no financial event is detected.
+
+    Return shape:
+    {
+      "type": "purchase" | "renewal" | "expiry_reminder" | "trial_ending",
+      "merchant": str,
+      "amount": float | null,
+      "currency": str,
+      "date": "YYYY-MM-DD",
+      "renewal_date": "YYYY-MM-DD | null",
+      "expiry_date": "YYYY-MM-DD | null",
+      "billing_cycle": "monthly" | "annual" | "one-time" | null,
+      "description": str
+    }
+    """
+    today = __import__("datetime").date.today().isoformat()
+    prompt = f"""You extract financial data from email notifications. Today is {today}.
+
+Email:
+  Subject: {subject}
+  From: {sender}
+  Preview: {snippet[:300]}
+
+If this email contains a purchase, charge, renewal, subscription, or expiry event, return a JSON object.
+If it does NOT contain any financial event (e.g. it's a newsletter, marketing email, or unrelated), return the JSON: {{"type": "none"}}
+
+For financial emails, return ONLY valid JSON:
+{{"type": "purchase|renewal|expiry_reminder|trial_ending", "merchant": "string", "amount": 0.00, "currency": "USD", "date": "YYYY-MM-DD", "renewal_date": "YYYY-MM-DD or null", "expiry_date": "YYYY-MM-DD or null", "billing_cycle": "monthly|annual|one-time|null", "description": "one line description"}}
+
+Rules:
+- amount must be a number (not a string), null if unknown
+- date is the transaction/event date; use today ({today}) if not stated
+- currency: infer from symbols ($ = USD, ₹ = INR, € = EUR) or default to USD
+- billing_cycle: null for one-off purchases"""
+
+    raw = _call_with_retry(prompt, max_tokens=250)
+    try:
+        result = json.loads(raw.strip())
+        if result.get("type") == "none":
+            return None
+        return result
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
 def suggest_reply_draft(subject: str, sender: str, body: str) -> str:
     """
     Generate a 2-sentence reply opener for a personal must-read email.

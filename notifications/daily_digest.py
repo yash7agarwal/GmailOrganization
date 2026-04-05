@@ -119,8 +119,20 @@ def build_digest(pipeline_result: dict) -> str:
     if unsubscribe_block:
         sections.append(unsubscribe_block)
 
+    # Charges and renewal alerts
+    try:
+        from expenses.renewal_alerts import format_charges_section, format_renewal_section, get_renewal_alerts
+        charges = format_charges_section(days=1)
+        if charges:
+            sections.append(charges)
+        renewal_section = format_renewal_section(get_renewal_alerts())
+        if renewal_section:
+            sections.append(renewal_section)
+    except Exception as e:
+        logger.warning(f"Expense/renewal section failed: {e}")
+
     sections.append("─────────────────")
-    sections.append("/today · /unsubscribe · /clusters · /report")
+    sections.append("/today · /spend · /renewals · /subscriptions · /unsubscribe")
 
     message = "\n\n".join(sections)
 
