@@ -64,6 +64,24 @@ def init_db() -> None:
             timestamp  TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS bot_interactions (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp        TEXT NOT NULL,
+            type             TEXT NOT NULL,  -- 'command', 'message', 'unknown_command', 'callback'
+            input_text       TEXT,
+            command_name     TEXT,
+            status           TEXT NOT NULL,  -- 'success', 'error', 'unknown'
+            error_message    TEXT,
+            error_type       TEXT,
+            response_sent    INTEGER DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bot_interactions_timestamp
+            ON bot_interactions (timestamp);
+
+        CREATE INDEX IF NOT EXISTS idx_bot_interactions_type
+            ON bot_interactions (type, status);
+
         CREATE UNIQUE INDEX IF NOT EXISTS idx_sender_month
             ON sender_stats (sender_email, month);
 
@@ -267,6 +285,73 @@ def log_feedback(event_type: str, payload: dict) -> None:
             "INSERT INTO feedback_events (event_type, payload, timestamp) VALUES (?, ?, ?)",
             (event_type, json.dumps(payload), datetime.utcnow().isoformat()),
         )
+
+
+def log_bot_interaction(
+    interaction_type: str,
+    input_text: str,
+    command_name: str | None,
+    status: str,
+    error_message: str | None = None,
+    error_type: str | None = None,
+    response_sent: bool = False,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO bot_interactions
+              (timestamp, type, input_text, command_name, status, error_message, error_type, response_sent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (datetime.utcnow().isoformat(), interaction_type, input_text,
+             command_name, status, error_message, error_type, int(response_sent)),
+        )
+
+
+def get_recent_bot_interactions(days: int = 7) -> list[dict]:
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM bot_interactions WHERE timestamp >= ? ORDER BY timestamp DESC",
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_unhandled_patterns(days: int = 7) -> list[dict]:
+    """Return unknown commands and repeated free-text messages from the last N days."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT input_text, command_name, type, COUNT(*) as frequency, MAX(timestamp) as last_seen
+            FROM bot_interactions
+            WHERE timestamp >= ?
+              AND (status = 'unknown' OR (status = 'error' AND type = 'message'))
+            GROUP BY LOWER(TRIM(input_text))
+            ORDER BY frequency DESC
+            LIMIT 50
+            """,
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_error_patterns(days: int = 7) -> list[dict]:
+    """Return commands that errored, grouped by command and error type."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT command_name, error_type, COUNT(*) as frequency, MAX(error_message) as sample_error
+            FROM bot_interactions
+            WHERE timestamp >= ? AND status = 'error'
+            GROUP BY command_name, error_type
+            ORDER BY frequency DESC
+            """,
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def log_expense(

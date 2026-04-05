@@ -24,6 +24,23 @@ def weekly_job() -> None:
         take_cluster_snapshot(label_totals)
         logger.info(f"Cluster snapshot saved: {label_totals}")
 
+        # Bot healing cycle — analyze interaction logs and send suggestions via Telegram
+        try:
+            import asyncio
+            import os
+            from notifications.bot_healer import analyze_interactions, send_healing_report
+
+            analysis = analyze_interactions()
+            if analysis.get("new_commands") or analysis.get("error_fixes"):
+                chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+                if chat_id:
+                    from telegram import Bot
+                    bot = Bot(token=os.environ["TELEGRAM_BOT_TOKEN"])
+                    asyncio.run(send_healing_report(bot, chat_id, analysis))
+                    logger.info("Healing report sent to Telegram")
+        except Exception as heal_err:
+            logger.warning(f"Healing cycle failed (non-critical): {heal_err}")
+
         _update_last_run("weekly")
     except Exception as e:
         logger.error(f"Weekly job failed: {e}")
