@@ -2,6 +2,10 @@
 
 All notable changes are documented here following [Semantic Versioning](https://semver.org/).
 
+## [0.4.3] — 2026-04-07
+### Fixed
+- Telegram Markdown parse errors in daily digest: added plain-text fallback that strips `*`, `_`, `` ` `` when Markdown send fails
+
 ## [0.4.2] — 2026-04-05
 ### Added
 - Full project README with architecture diagram, setup guide, and command reference
