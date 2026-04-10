@@ -2,6 +2,10 @@
 
 All notable changes are documented here following [Semantic Versioning](https://semver.org/).
 
+## [0.4.4] — 2026-04-11
+### Added
+- `memory/issues_log.jsonl` — initialized for the cross-project self-healing system; receives eval pass/fail entries and known-issue patterns from `/post-task-eval` and `/self-heal` skills
+
 ## [0.4.3] — 2026-04-07
 ### Fixed
 - Telegram Markdown parse errors in daily digest: added plain-text fallback that strips `*`, `_`, `` ` `` when Markdown send fails

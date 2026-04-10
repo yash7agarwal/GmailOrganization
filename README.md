@@ -1,4 +1,4 @@
-# GmailOrganization · v0.4.2
+# GmailOrganization · v0.4.4
 
 > Autonomous Gmail inbox organiser with Claude-powered classification, expense tracking, and Telegram notifications — that gets smarter every month.
 
