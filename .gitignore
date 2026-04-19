@@ -1,8 +1,17 @@
 .env
+.env.*
+!.env.example
+credentials.json
+token.json
+token.pickle
+client_secret*.json
 learning/db/
 logs/
 __pycache__/
 *.pyc
 *.pyo
+*.db
+*.sqlite
+*.sqlite3
 .DS_Store
 .claude/settings.local.json
