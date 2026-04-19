@@ -2,6 +2,14 @@
 
 All notable changes are documented here following [Semantic Versioning](https://semver.org/).
 
+## [0.4.5] — 2026-04-19 — Gitignore hardening for credentials + local DBs
+
+### Fixed
+- `.gitignore` — explicitly ignore credential/secret patterns that could have been staged accidentally: `.env.*` (except `.env.example`), `credentials.json`, `token.json`, `token.pickle`, `client_secret*.json`. Also ignore `*.db`, `*.sqlite`, `*.sqlite3` so local SQLite files never get committed.
+
+### Why
+This project handles Gmail OAuth tokens and Google API credentials. A leaked `token.pickle` or `client_secret.json` in a public commit would be a real security incident; paranoid gitignore is cheap insurance.
+
 ## [0.4.4] — 2026-04-11
 ### Added
 - `memory/issues_log.jsonl` — initialized for the cross-project self-healing system; receives eval pass/fail entries and known-issue patterns from `/post-task-eval` and `/self-heal` skills
